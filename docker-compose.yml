@@ -18,10 +18,13 @@ services:
     environment:
       - PYTHONPATH=/app/src
       - ENVIRONMENT=${ENVIRONMENT:-production}
-    # Optional: mount config.conf for cookie persistence across container restarts
-    # volumes:
-    #   - ./config.conf:/app/config.conf
+      - CONFIG_PATH=/app/data/config.conf
+    volumes:
+      - webai_data:/app/data
     command: >
       sh -c "
         uvicorn app.main:app --host 0.0.0.0 --port 6969 --workers 1 --log-level info;
       "
+
+volumes:
+  webai_data:
