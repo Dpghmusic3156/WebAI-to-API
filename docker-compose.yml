@@ -1,11 +1,14 @@
 # docker-compose.yml
 
-# This file is for production mode only.
+# Production deployment using pre-built image from GitHub Container Registry.
+# Image is auto-built on push to master via GitHub Actions.
+#
+# To build locally instead, uncomment "build: ." and comment out the image line.
 
 services:
   web_ai:
-    build: .
-    image: cornatul/webai.ai
+    # build: .
+    image: ghcr.io/leolionart/webai-to-api:latest
     container_name: web_ai_server
     restart: always
     ports:
@@ -15,7 +18,10 @@ services:
     environment:
       - PYTHONPATH=/app/src
       - ENVIRONMENT=${ENVIRONMENT:-production}
+    # Optional: mount config.conf for cookie persistence across container restarts
+    # volumes:
+    #   - ./config.conf:/app/config.conf
     command: >
       sh -c "
-        uvicorn app.main:app --host 0.0.0.0 --port 6969 --workers 4 --log-level info;
+        uvicorn app.main:app --host 0.0.0.0 --port 6969 --workers 1 --log-level info;
       "
