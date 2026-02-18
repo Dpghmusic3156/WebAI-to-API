@@ -82,3 +82,11 @@ def get_gemini_client():
         raise GeminiClientNotInitializedError(error_detail)
     return _gemini_client
 
+
+def get_client_status() -> dict:
+    """Return the current status of the Gemini client for the admin UI."""
+    return {
+        "initialized": _gemini_client is not None,
+        "error": _initialization_error,
+    }
+

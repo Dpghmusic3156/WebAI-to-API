@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebAI-to-API Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/admin.css') }}">
+</head>
+<body>
+    <header class="admin-header">
+        <div class="header-left">
+            <h1>WebAI-to-API</h1>
+            <span class="header-subtitle">Admin Dashboard</span>
+        </div>
+        <span id="connection-status" class="status-badge checking">Checking...</span>
+    </header>
+
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+        <button class="tab-btn" data-tab="config">Configuration</button>
+        <button class="tab-btn" data-tab="logs">Logs</button>
+    </nav>
+
+    <main>
+        <section id="tab-dashboard" class="tab-panel active">
+            <div class="stats-grid">
+                <div class="stat-card" id="card-status">
+                    <div class="stat-label">Gemini Status</div>
+                    <div class="stat-value" id="val-status">--</div>
+                </div>
+                <div class="stat-card" id="card-model">
+                    <div class="stat-label">Current Model</div>
+                    <div class="stat-value" id="val-model">--</div>
+                </div>
+                <div class="stat-card" id="card-requests">
+                    <div class="stat-label">Total Requests</div>
+                    <div class="stat-value" id="val-requests">--</div>
+                    <div class="stat-detail">
+                        <span class="success" id="val-success">0 OK</span>
+                        <span class="error" id="val-errors">0 ERR</span>
+                    </div>
+                </div>
+                <div class="stat-card" id="card-uptime">
+                    <div class="stat-label">Uptime</div>
+                    <div class="stat-value" id="val-uptime">--</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Endpoint Activity</h3>
+                <table class="data-table" id="endpoint-table">
+                    <thead><tr><th>Endpoint</th><th>Requests</th></tr></thead>
+                    <tbody id="endpoint-tbody"></tbody>
+                </table>
+                <p class="empty-state" id="no-endpoints">No requests yet</p>
+            </div>
+
+            <div class="section">
+                <button id="btn-reinit" class="btn btn-warning">Reinitialize Gemini Client</button>
+                <span id="reinit-result" class="inline-result"></span>
+            </div>
+        </section>
+
+        <section id="tab-config" class="tab-panel">
+            <!-- cURL Import -->
+            <div class="section">
+                <h3>Import Cookies from cURL</h3>
+                <p class="help-text">
+                    Open Chrome DevTools (F12) &rarr; Network tab &rarr; navigate to
+                    <a href="https://gemini.google.com" target="_blank">gemini.google.com</a> &rarr;
+                    right-click any request &rarr; <strong>Copy as cURL</strong> &rarr; paste below.
+                    <br>You can also paste just the raw Cookie header value.
+                </p>
+                <textarea id="curl-input" class="code-input" rows="6"
+                    placeholder="curl 'https://gemini.google.com/...' -H 'cookie: __Secure-1PSID=...; __Secure-1PSIDTS=...'"></textarea>
+                <button id="btn-curl-import" class="btn btn-primary">Import Cookies</button>
+                <div id="curl-result" class="result-box hidden"></div>
+            </div>
+
+            <!-- Cookie Status -->
+            <div class="section">
+                <h3>Cookie Status</h3>
+                <div class="config-row">
+                    <span class="config-label">Status:</span>
+                    <span id="cookie-status-badge" class="status-badge">--</span>
+                </div>
+                <div class="config-row">
+                    <span class="config-label">__Secure-1PSID:</span>
+                    <code id="cookie-1psid-preview">--</code>
+                </div>
+                <div class="config-row">
+                    <span class="config-label">__Secure-1PSIDTS:</span>
+                    <code id="cookie-1psidts-preview">--</code>
+                </div>
+            </div>
+
+            <!-- Manual Cookie Entry -->
+            <details class="section collapsible">
+                <summary>Manual Cookie Entry</summary>
+                <div class="form-group">
+                    <label for="manual-1psid">__Secure-1PSID</label>
+                    <input type="text" id="manual-1psid" class="text-input" placeholder="Paste cookie value...">
+                </div>
+                <div class="form-group">
+                    <label for="manual-1psidts">__Secure-1PSIDTS</label>
+                    <input type="text" id="manual-1psidts" class="text-input" placeholder="Paste cookie value...">
+                </div>
+                <button id="btn-manual-cookies" class="btn btn-primary">Update Cookies</button>
+                <div id="manual-result" class="result-box hidden"></div>
+            </details>
+
+            <!-- Model Selection -->
+            <div class="section">
+                <h3>Model</h3>
+                <div class="config-row">
+                    <select id="model-select" class="select-input"></select>
+                    <button id="btn-save-model" class="btn btn-small">Save</button>
+                    <span id="model-result" class="inline-result"></span>
+                </div>
+            </div>
+
+            <!-- Proxy -->
+            <div class="section">
+                <h3>Proxy</h3>
+                <div class="config-row">
+                    <input type="text" id="proxy-input" class="text-input" placeholder="http://127.0.0.1:2334">
+                    <button id="btn-save-proxy" class="btn btn-small">Save</button>
+                    <span id="proxy-result" class="inline-result"></span>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-logs" class="tab-panel">
+            <div class="logs-toolbar">
+                <select id="log-level-filter" class="select-input">
+                    <option value="ALL">All Levels</option>
+                    <option value="ERROR">ERROR</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="INFO">INFO</option>
+                    <option value="DEBUG">DEBUG</option>
+                </select>
+                <input type="text" id="log-search" class="text-input" placeholder="Search logs...">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="log-autoscroll" checked> Auto-scroll
+                </label>
+                <button id="btn-clear-logs" class="btn btn-small">Clear</button>
+            </div>
+            <div id="log-container" class="log-container">
+                <p class="empty-state">Waiting for logs...</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', path='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', path='js/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', path='js/config.js') }}"></script>
+    <script src="{{ url_for('static', path='js/logs.js') }}"></script>
+    <script src="{{ url_for('static', path='js/app.js') }}"></script>
+</body>
+</html>
