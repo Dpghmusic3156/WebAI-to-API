@@ -39,5 +39,16 @@ def load_config(config_file: str = "config.conf") -> configparser.ConfigParser:
     return config
 
 
+def write_config(config: configparser.ConfigParser, config_file: str = "config.conf") -> bool:
+    """Write the current config state to disk."""
+    try:
+        with open(config_file, "w", encoding="utf-8") as f:
+            config.write(f)
+        return True
+    except Exception as e:
+        logger.error(f"Error writing to config file: {e}")
+        return False
+
+
 # Load configuration globally
 CONFIG = load_config()

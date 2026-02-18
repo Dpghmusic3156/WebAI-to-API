@@ -1,14 +1,24 @@
 # src/app/main.py
-from fastapi import FastAPI
+import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.services.gemini_client import get_gemini_client, init_gemini_client, GeminiClientNotInitializedError
 from app.services.session_manager import init_session_managers
+from app.services.log_broadcaster import SSELogBroadcaster, BroadcastLogHandler
+from app.services.stats_collector import StatsCollector
 from app.logger import logger
 
 # Import endpoint routers
 from app.endpoints import gemini, chat, google_generative
+from app.endpoints import admin, admin_api
+
+_SRC_DIR = Path(__file__).resolve().parent.parent  # points to src/
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,6 +26,14 @@ async def lifespan(app: FastAPI):
     Application lifespan manager.
     Initializes services on startup.
     """
+    # Initialize log broadcaster and attach handler to root logger only.
+    # Child loggers (app, uvicorn, etc.) propagate to root by default,
+    # so attaching to root is sufficient and avoids duplicate entries.
+    broadcaster = SSELogBroadcaster.get_instance()
+    handler = BroadcastLogHandler(broadcaster)
+    handler.setLevel(logging.INFO)
+    logging.getLogger().addHandler(handler)
+
     # Try to get the existing client first
     client_initialized = False
     try:
@@ -46,8 +64,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown logic: No explicit client closing is needed anymore.
-    # The underlying HTTPX client manages its connection pool automatically.
+    # Remove log handler on shutdown
+    logging.getLogger().removeHandler(handler)
     logger.info("Application shutdown complete.")
 
 app = FastAPI(lifespan=lifespan)
@@ -64,3 +82,20 @@ app.add_middleware(
 app.include_router(gemini.router)
 app.include_router(chat.router)
 app.include_router(google_generative.router)
+
+# Register admin routers
+app.include_router(admin.router)
+app.include_router(admin_api.router)
+
+# Mount static files for admin UI
+app.mount("/static", StaticFiles(directory=str(_SRC_DIR / "static")), name="static")
+
+
+# Stats middleware - track API requests (skip static/admin)
+@app.middleware("http")
+async def stats_middleware(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if not path.startswith("/static") and not path.startswith("/admin") and not path.startswith("/api/admin"):
+        StatsCollector.get_instance().record_request(path, response.status_code)
+    return response

@@ -1,0 +1,140 @@
+// src/static/js/config.js - Configuration tab logic
+
+const Config = {
+    init() {
+        // cURL import
+        document.getElementById("btn-curl-import").addEventListener("click", () => this.handleCurlImport());
+
+        // Manual cookies
+        document.getElementById("btn-manual-cookies").addEventListener("click", () => this.handleManualCookies());
+
+        // Model save
+        document.getElementById("btn-save-model").addEventListener("click", () => this.handleModelSave());
+
+        // Proxy save
+        document.getElementById("btn-save-proxy").addEventListener("click", () => this.handleProxySave());
+    },
+
+    activate() {
+        this.refresh();
+    },
+
+    deactivate() {},
+
+    async refresh() {
+        try {
+            const data = await api.get("/api/admin/config");
+            this.updateDisplay(data);
+        } catch {
+            // Ignore on error
+        }
+    },
+
+    updateDisplay(data) {
+        // Cookie status
+        const badge = document.getElementById("cookie-status-badge");
+        badge.textContent = data.cookies_set ? "Configured" : "Not Set";
+        badge.className = "status-badge " + (data.cookies_set ? "connected" : "disconnected");
+
+        document.getElementById("cookie-1psid-preview").textContent = data.cookie_1psid_preview || "Not set";
+        document.getElementById("cookie-1psidts-preview").textContent = data.cookie_1psidts_preview || "Not set";
+
+        // Model dropdown
+        const select = document.getElementById("model-select");
+        select.innerHTML = "";
+        (data.available_models || []).forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m;
+            opt.textContent = m;
+            if (m === data.model) opt.selected = true;
+            select.appendChild(opt);
+        });
+
+        // Proxy
+        document.getElementById("proxy-input").value = data.proxy || "";
+    },
+
+    async handleCurlImport() {
+        const textarea = document.getElementById("curl-input");
+        const resultDiv = document.getElementById("curl-result");
+        const text = textarea.value.trim();
+
+        if (!text) {
+            showResult(resultDiv, "error", "Please paste a cURL command or cookie string.");
+            return;
+        }
+
+        const btn = document.getElementById("btn-curl-import");
+        btn.disabled = true;
+        btn.textContent = "Importing...";
+
+        try {
+            const data = await api.post("/api/admin/config/curl-import", { curl_text: text });
+            if (data.success) {
+                showResult(resultDiv, "success", data.message + (data.url_detected ? " (URL: " + data.url_detected + ")" : ""));
+                textarea.value = "";
+                this.refresh();
+                Dashboard.refresh();
+            } else {
+                showResult(resultDiv, "warning", data.message);
+            }
+        } catch (err) {
+            const detail = err.detail || {};
+            let msg = detail.message || "Failed to import cookies";
+            if (detail.errors) msg += "\n" + detail.errors.join("\n");
+            if (detail.found_cookies) msg += "\nFound cookies: " + detail.found_cookies.join(", ");
+            showResult(resultDiv, "error", msg);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Import Cookies";
+        }
+    },
+
+    async handleManualCookies() {
+        const psid = document.getElementById("manual-1psid").value.trim();
+        const psidts = document.getElementById("manual-1psidts").value.trim();
+        const resultDiv = document.getElementById("manual-result");
+
+        if (!psid || !psidts) {
+            showResult(resultDiv, "error", "Both cookie values are required.");
+            return;
+        }
+
+        try {
+            const data = await api.post("/api/admin/config/cookies", {
+                secure_1psid: psid,
+                secure_1psidts: psidts,
+            });
+            showResult(resultDiv, data.success ? "success" : "warning", data.message);
+            document.getElementById("manual-1psid").value = "";
+            document.getElementById("manual-1psidts").value = "";
+            this.refresh();
+            Dashboard.refresh();
+        } catch (err) {
+            showResult(resultDiv, "error", "Failed: " + (err.detail || "Unknown error"));
+        }
+    },
+
+    async handleModelSave() {
+        const model = document.getElementById("model-select").value;
+        const result = document.getElementById("model-result");
+        try {
+            await api.post("/api/admin/config/model", { model });
+            showInline(result, "Saved", false);
+        } catch {
+            showInline(result, "Failed", true);
+        }
+    },
+
+    async handleProxySave() {
+        const proxy = document.getElementById("proxy-input").value.trim();
+        const result = document.getElementById("proxy-result");
+        try {
+            await api.post("/api/admin/config/proxy", { http_proxy: proxy });
+            showInline(result, "Saved", false);
+            Dashboard.refresh();
+        } catch {
+            showInline(result, "Failed", true);
+        }
+    },
+};
