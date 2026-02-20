@@ -9,15 +9,11 @@ Compatible with any tool that supports the OpenAI API format: [Open WebUI](https
 
 ---
 
-## Deployment with Docker Compose
+## Deploy with Docker Compose
 
-### 1. Prerequisites
+### 1. Create a folder and add two files
 
-- [Docker](https://docs.docker.com/get-docker/) with Docker Compose v2
-
-### 2. Create `docker-compose.yml`
-
-Create a new folder, then copy this file into it:
+**`docker-compose.yml`**
 
 ```yaml
 services:
@@ -31,22 +27,11 @@ services:
       - PYTHONPATH=/app/src
       - CONFIG_PATH=/app/data/config.conf
     volumes:
-      - webai_data:/app/data
+      - ./config.conf:/app/data/config.conf
     command: uvicorn app.main:app --host 0.0.0.0 --port 6969 --workers 1 --log-level info
-
-volumes:
-  webai_data:
 ```
 
-### 3. Get your Gemini cookies
-
-1. Open [gemini.google.com](https://gemini.google.com) and log in
-2. Open DevTools (`F12`) → **Application** → **Cookies** → `https://gemini.google.com`
-3. Copy the values of `__Secure-1PSID` and `__Secure-1PSIDTS`
-
-### 4. Create `config.conf`
-
-In the same folder, create `config.conf` and paste your cookies into the `[Cookies]` section:
+**`config.conf`** (leave cookies empty for now)
 
 ```ini
 [Browser]
@@ -57,8 +42,8 @@ default_ai = gemini
 default_model_gemini = gemini-2.5-flash
 
 [Cookies]
-gemini_cookie_1psid   = paste __Secure-1PSID value here
-gemini_cookie_1psidts = paste __Secure-1PSIDTS value here
+gemini_cookie_1psid   =
+gemini_cookie_1psidts =
 
 [EnabledAI]
 gemini = true
@@ -67,42 +52,41 @@ gemini = true
 http_proxy =
 ```
 
-### 5. Start the server
+### 2. Start the server
 
 ```bash
 docker compose up -d
 ```
 
-The API is now running at **`http://localhost:6969`**.
+### 3. Open the admin dashboard
 
-Cookies are stored in a Docker named volume and survive restarts. The server also auto-rotates `__Secure-1PSIDTS` in the background — no manual cookie refresh needed.
+Go to **`http://localhost:6969/admin`**
 
----
-
-## Verify it's working
-
-```bash
-curl http://localhost:6969/v1/models
-```
-
-Expected response:
-
-```json
-{
-  "object": "list",
-  "data": [
-    { "id": "gemini-3.0-pro", ... },
-    { "id": "gemini-2.5-pro", ... },
-    { "id": "gemini-2.5-flash", ... }
-  ]
-}
-```
+From there, paste your Gemini cookies and click **Connect** — no file editing needed.
 
 ---
 
-## Making API requests
+## Getting Gemini cookies
 
-The server exposes an OpenAI-compatible endpoint at `/v1/chat/completions`.
+1. Open [gemini.google.com](https://gemini.google.com) and log in
+2. Open DevTools (`F12`) → **Network** tab → refresh the page → click any request to `gemini.google.com`
+3. Right-click the request → **Copy → Copy as cURL**
+4. Paste the cURL command into the admin dashboard — it extracts the cookies automatically
+
+Or manually: DevTools → **Application** → **Cookies** → copy `__Secure-1PSID` and `__Secure-1PSIDTS`.
+
+Cookies are saved to `config.conf` in your folder and auto-rotated in the background — no manual refresh needed.
+
+---
+
+## Using the API
+
+The server exposes an OpenAI-compatible endpoint. Point any compatible tool to:
+
+```
+Base URL: http://localhost:6969/v1
+API Key:  not-needed
+```
 
 ### Supported models
 
@@ -140,91 +124,29 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-### Example: with system prompt and conversation history
-
-```json
-{
-  "model": "gemini-2.5-pro",
-  "messages": [
-    { "role": "system", "content": "You are a helpful assistant." },
-    { "role": "user", "content": "What is Python?" },
-    { "role": "assistant", "content": "Python is a programming language." },
-    { "role": "user", "content": "Is it easy to learn?" }
-  ]
-}
-```
-
 ---
 
-## All endpoints
+## Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/models` | List available models |
-| `POST` | `/v1/chat/completions` | OpenAI-compatible chat |
+| `GET`  | `/v1/models` | List available models |
+| `POST` | `/v1/chat/completions` | OpenAI-compatible chat (streaming supported) |
 | `POST` | `/gemini` | Stateless single-turn request |
 | `POST` | `/gemini-chat` | Stateful multi-turn chat |
-| `POST` | `/translate` | Translation (same as `/gemini-chat`) |
-| `POST` | `/v1beta/models/{model}:generateContent` | Google Generative AI format |
-
-Swagger UI available at `http://localhost:6969/docs`.
+| `POST` | `/translate` | Translation (alias for `/gemini-chat`) |
+| `GET`  | `/admin` | Admin dashboard |
+| `GET`  | `/docs` | Swagger UI |
 
 ---
 
-## Common operations
+## Common commands
 
 ```bash
-# View logs
-docker compose logs -f
-
-# Stop
-docker compose down
-
-# Update to latest image
-docker compose pull && docker compose up -d
-
-# Restart
-docker compose restart
-```
-
----
-
-## Updating cookies
-
-If your session expires, paste new cookie values into `config.conf` and restart:
-
-```bash
-docker compose restart
-```
-
-The volume keeps your config between restarts — you only need to re-edit the file.
-
----
-
-## Configuration reference
-
-Full `config.conf` options:
-
-```ini
-[Browser]
-# Browser for automatic cookie extraction (if cookies are left empty above).
-# Options: chrome, firefox, brave, edge, safari
-name = chrome
-
-[AI]
-default_ai = gemini
-default_model_gemini = gemini-2.5-flash
-
-[Cookies]
-gemini_cookie_1psid   =
-gemini_cookie_1psidts =
-
-[EnabledAI]
-gemini = true
-
-[Proxy]
-# Optional HTTP proxy for Gemini connections (useful for 403 errors).
-http_proxy =
+docker compose up -d          # start
+docker compose down           # stop
+docker compose logs -f        # live logs
+docker compose pull && docker compose up -d   # update to latest
 ```
 
 ---
