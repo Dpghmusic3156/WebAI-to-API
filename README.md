@@ -15,11 +15,27 @@ Compatible with any tool that supports the OpenAI API format: [Open WebUI](https
 
 - [Docker](https://docs.docker.com/get-docker/) with Docker Compose v2
 
-### 2. Clone the repository
+### 2. Create `docker-compose.yml`
 
-```bash
-git clone https://github.com/leolionart/WebAI-to-API.git
-cd WebAI-to-API
+Create a new folder, then copy this file into it:
+
+```yaml
+services:
+  web_ai:
+    image: ghcr.io/leolionart/webai-to-api:latest
+    container_name: web_ai_server
+    restart: always
+    ports:
+      - "6969:6969"
+    environment:
+      - PYTHONPATH=/app/src
+      - CONFIG_PATH=/app/data/config.conf
+    volumes:
+      - webai_data:/app/data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 6969 --workers 1 --log-level info
+
+volumes:
+  webai_data:
 ```
 
 ### 3. Get your Gemini cookies
@@ -28,28 +44,27 @@ cd WebAI-to-API
 2. Open DevTools (`F12`) → **Application** → **Cookies** → `https://gemini.google.com`
 3. Copy the values of `__Secure-1PSID` and `__Secure-1PSIDTS`
 
-### 4. Create and configure `config.conf`
+### 4. Create `config.conf`
 
-```bash
-cp config.conf.example config.conf
-```
-
-Open `config.conf` and paste your cookies:
+In the same folder, create `config.conf` and paste your cookies into the `[Cookies]` section:
 
 ```ini
+[Browser]
+name = chrome
+
+[AI]
+default_ai = gemini
+default_model_gemini = gemini-2.5-flash
+
 [Cookies]
 gemini_cookie_1psid   = paste __Secure-1PSID value here
 gemini_cookie_1psidts = paste __Secure-1PSIDTS value here
-```
 
-Other settings you may want to change:
-
-```ini
-[AI]
-default_model_gemini = gemini-2.5-flash   # model to use by default
+[EnabledAI]
+gemini = true
 
 [Proxy]
-http_proxy =   # optional, e.g. http://127.0.0.1:7890 if Gemini is blocked
+http_proxy =
 ```
 
 ### 5. Start the server
