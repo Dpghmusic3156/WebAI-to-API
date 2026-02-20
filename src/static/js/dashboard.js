@@ -1,5 +1,21 @@
 // src/static/js/dashboard.js - Dashboard tab logic
 
+function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+    }
+    // Fallback for HTTP (non-secure) contexts
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch (_) {}
+    document.body.removeChild(ta);
+    return Promise.resolve();
+}
+
 const API_ENDPOINTS = [
     { method: "GET",  path: "/v1/models", desc: "List available models" },
     { method: "POST", path: "/v1/chat/completions", desc: "Chat completions — OpenAI format" },
@@ -44,7 +60,7 @@ const Dashboard = {
                 const el = document.getElementById(targetId);
                 if (!el) return;
                 const text = el.textContent;
-                navigator.clipboard.writeText(text).then(() => {
+                copyText(text).then(() => {
                     const orig = btn.textContent;
                     btn.textContent = "Copied!";
                     btn.classList.add("copied");
@@ -155,7 +171,7 @@ const Dashboard = {
         tbody.querySelectorAll(".btn-copy").forEach(btn => {
             btn.addEventListener("click", () => {
                 const text = btn.dataset.copyValue;
-                navigator.clipboard.writeText(text).then(() => {
+                copyText(text).then(() => {
                     const orig = btn.textContent;
                     btn.textContent = "Copied!";
                     btn.classList.add("copied");

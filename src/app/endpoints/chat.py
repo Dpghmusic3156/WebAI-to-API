@@ -1,6 +1,8 @@
 # src/app/endpoints/chat.py
+import json
 import time
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from app.logger import logger
 from app.config import CONFIG
 from schemas.request import GeminiModels, GeminiRequest, OpenAIChatRequest
@@ -66,6 +68,55 @@ def convert_to_openai_format(response_text: str, model: str, stream: bool = Fals
         },
     }
 
+def _extract_content(content) -> str:
+    """Extract text from content that may be a string or a list of content parts (OpenAI multimodal format)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(
+            part.get("text", "") for part in content
+            if isinstance(part, dict) and part.get("type") == "text"
+        )
+    return str(content) if content else ""
+
+
+async def _stream_response(response_text: str, model: str):
+    """Yield SSE chunks in OpenAI streaming format."""
+    completion_id = f"chatcmpl-{int(time.time())}"
+    created = int(time.time())
+
+    # First chunk: role
+    first_chunk = {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [{"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}],
+    }
+    yield f"data: {json.dumps(first_chunk)}\n\n"
+
+    # Content chunk
+    content_chunk = {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [{"index": 0, "delta": {"content": response_text}, "finish_reason": None}],
+    }
+    yield f"data: {json.dumps(content_chunk)}\n\n"
+
+    # Final chunk
+    final_chunk = {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+    }
+    yield f"data: {json.dumps(final_chunk)}\n\n"
+    yield "data: [DONE]\n\n"
+
+
 @router.post("/v1/chat/completions")
 async def chat_completions(request: OpenAIChatRequest):
     try:
@@ -83,7 +134,7 @@ async def chat_completions(request: OpenAIChatRequest):
 
     for msg in request.messages:
         role = msg.get("role", "user")
-        content = msg.get("content", "")
+        content = _extract_content(msg.get("content", ""))
         if not content:
             continue
 
@@ -97,15 +148,20 @@ async def chat_completions(request: OpenAIChatRequest):
     if not conversation_parts:
         raise HTTPException(status_code=400, detail="No valid messages found.")
 
-    # Join all parts with newlines
     final_prompt = "\n\n".join(conversation_parts)
 
-    if request.model:
-        try:
-            response = await gemini_client.generate_content(message=final_prompt, model=request.model.value, files=None)
-            return convert_to_openai_format(response.text, request.model.value, is_stream)
-        except Exception as e:
-            logger.error(f"Error in /v1/chat/completions endpoint: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Error processing chat completion: {str(e)}")
-    else:
+    if not request.model:
         raise HTTPException(status_code=400, detail="Model not specified in the request.")
+
+    try:
+        response = await gemini_client.generate_content(message=final_prompt, model=request.model.value, files=None)
+        if is_stream:
+            return StreamingResponse(
+                _stream_response(response.text, request.model.value),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+        return convert_to_openai_format(response.text, request.model.value, is_stream)
+    except Exception as e:
+        logger.error(f"Error in /v1/chat/completions endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing chat completion: {str(e)}")
