@@ -163,5 +163,14 @@ async def chat_completions(request: OpenAIChatRequest):
             )
         return convert_to_openai_format(response.text, request.model.value, is_stream)
     except Exception as e:
-        logger.error(f"Error in /v1/chat/completions endpoint: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error processing chat completion: {str(e)}")
+        err_str = str(e)
+        err_lower = err_str.lower()
+        if "auth" in err_lower or "cookie" in err_lower:
+            logger.error(f"[chat/completions] Auth error (cookies may be expired): {e}")
+            raise HTTPException(status_code=401, detail=f"Gemini authentication failed: {err_str}")
+        elif "zombie" in err_lower or "parse" in err_lower or "stalled" in err_lower:
+            logger.error(f"[chat/completions] Gemini stream error after retries (model={request.model.value}): {e}")
+            raise HTTPException(status_code=503, detail="Gemini stream temporarily unavailable — please retry")
+        else:
+            logger.error(f"[chat/completions] Unexpected error (model={request.model.value}): {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Error processing chat completion: {err_str}")
