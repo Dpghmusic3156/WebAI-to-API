@@ -172,6 +172,18 @@ body {
   letter-spacing: 0.01em;
 }
 
+.header-version {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--md-outline);
+  background: var(--md-surface-container-high);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: 20px;
+  padding: 1px 8px;
+  letter-spacing: 0.02em;
+  font-family: var(--font-mono);
+}
+
 /* ── Status badge (M3 chip) ─────────────────────────────────────── */
 .status-badge {
   display: inline-flex;

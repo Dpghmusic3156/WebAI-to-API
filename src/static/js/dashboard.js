@@ -213,6 +213,10 @@ const Dashboard = {
         const badge = document.getElementById("connection-status");
         badge.textContent = data.gemini_status === "connected" ? "Connected" : "Disconnected";
         badge.className = "status-badge " + data.gemini_status;
+
+        // Update version chip
+        const versionEl = document.getElementById("app-version");
+        if (versionEl && data.version) versionEl.textContent = "v" + data.version;
     },
 
     updateEndpointTable(endpoints, endpointsDetail, totalRequests) {

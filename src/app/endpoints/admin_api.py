@@ -1,5 +1,7 @@
 # src/app/endpoints/admin_api.py
 import json
+import tomllib
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -19,6 +21,17 @@ from app.services.stats_collector import StatsCollector
 from app.services.telegram_notifier import TelegramNotifier
 
 router = APIRouter(prefix="/api/admin", tags=["Admin API"])
+
+# Read version once at import time
+def _read_version() -> str:
+    try:
+        pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
+        with open(pyproject, "rb") as f:
+            return tomllib.load(f)["tool"]["poetry"]["version"]
+    except Exception:
+        return "unknown"
+
+_VERSION = _read_version()
 
 
 # --- Request models ---
@@ -64,6 +77,7 @@ async def get_status():
         gemini_status = "disconnected"
 
     return {
+        "version": _VERSION,
         "gemini_status": gemini_status,
         "client_error": client_status.get("error"),
         "error_code": client_status.get("error_code"),
