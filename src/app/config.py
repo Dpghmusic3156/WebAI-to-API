@@ -13,6 +13,15 @@ DEFAULT_CONFIG_PATH = os.environ.get("CONFIG_PATH", "config.conf")
 
 def _ensure_config_exists(config_file: str) -> None:
     """If config_file doesn't exist, copy from bundled default or create empty."""
+    # Docker volume misconfiguration: path exists but is a directory instead of a file
+    if os.path.isdir(config_file):
+        logger.error(
+            f"Config path '{config_file}' is a directory, not a file. "
+            "This usually means the Docker volume was mounted incorrectly. "
+            "Fix: ensure the host path is a file (e.g. touch /host/data/config.conf) "
+            "before mounting as a volume."
+        )
+        return
     if os.path.exists(config_file):
         return
     # Create parent directory if needed
@@ -21,7 +30,7 @@ def _ensure_config_exists(config_file: str) -> None:
         os.makedirs(parent, exist_ok=True)
     # Try to copy bundled config.conf as starting point
     bundled = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "config.conf")
-    if os.path.exists(bundled):
+    if os.path.exists(bundled) and not os.path.isdir(bundled):
         shutil.copy2(bundled, config_file)
         logger.info(f"Copied bundled config to {config_file}")
 

@@ -161,7 +161,7 @@ const Config = {
         document.getElementById("telegram-chatid").value = data.chat_id || "";
         document.getElementById("telegram-cooldown").value = data.cooldown_seconds || 60;
         const preview = document.getElementById("telegram-token-preview");
-        preview.textContent = data.bot_token_preview ? `Current token: ${data.bot_token_preview}` : "";
+        preview.textContent = data.bot_token_preview || "";
     },
 
     async handleTelegramSave() {
