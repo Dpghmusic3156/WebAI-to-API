@@ -42,8 +42,11 @@ def init_session_managers():
         client = get_gemini_client()
         _translate_session_manager = SessionManager(client)
         _gemini_chat_manager = SessionManager(client)
-    except GeminiClientNotInitializedError:
-        logger.warning("Session managers not initialized: Gemini client not available.")
+        logger.info(f"Session managers initialized successfully (pid={__import__('os').getpid()}).")
+    except GeminiClientNotInitializedError as e:
+        logger.warning(f"Session managers not initialized: Gemini client not available. Error: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error initializing session managers: {e}", exc_info=True)
 
 def get_translate_session_manager():
     return _translate_session_manager
