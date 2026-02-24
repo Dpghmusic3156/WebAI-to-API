@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from app.logger import logger
 from app.services.gemini_client import GeminiClientNotInitializedError, get_gemini_client
 from app.services.telegram_notifier import TelegramNotifier
-from app.services.session_manager import get_gemini_chat_manager, init_session_managers
+from app.services.session_manager import get_or_create_chat_session
 from app.utils.image_utils import cleanup_temp_files, serialize_response_images
 from schemas.request import GeminiRequest
 
@@ -70,35 +70,34 @@ async def gemini_chat(request: GeminiRequest):
     """
     Stateful chat with persistent session context.
 
+    Pass ``session_id`` từ response trước để tiếp tục cuộc trò chuyện.
+    Nếu không có ``session_id``, một session mới sẽ được tạo và ID trả về trong response.
+
     Response includes:
     - ``response``: generated text
+    - ``session_id``: ID để tiếp tục cuộc trò chuyện ở request tiếp theo
     - ``images``: list of web/generated images (URL + base64), if any
     - ``thoughts``: chain-of-thought text (thinking models only), if any
     """
+    import uuid
     try:
         gemini_client = get_gemini_client()
     except GeminiClientNotInitializedError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
-    session_manager = get_gemini_chat_manager()
-    if not session_manager:
-        import os
-        logger.warning(f"[gemini-chat] Session manager is None, attempting lazy init (pid={os.getpid()})...")
-        try:
-            init_session_managers()
-        except Exception as e:
-            logger.error(f"[gemini-chat] init_session_managers() raised: {e}", exc_info=True)
-        session_manager = get_gemini_chat_manager()
-        logger.warning(f"[gemini-chat] After lazy init, session_manager={session_manager}")
-    if not session_manager:
-        raise HTTPException(status_code=503, detail="Session manager is not initialized.")
+    sid = request.session_id or str(uuid.uuid4())
+
+    try:
+        session_manager = get_or_create_chat_session(sid)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Could not create session: {e}")
 
     try:
         response = await session_manager.get_response(request.model, request.message, request.files)
 
         images = await serialize_response_images(response, gemini_cookies=_get_cookies(gemini_client))
 
-        result: dict = {"response": response.text}
+        result: dict = {"response": response.text, "session_id": sid}
         if images:
             result["images"] = images
         if response.thoughts:

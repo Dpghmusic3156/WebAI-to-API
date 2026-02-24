@@ -40,6 +40,7 @@ class GeminiRequest(BaseModel):
     message: str
     model: GeminiModels = Field(default=GeminiModels.FLASH, description="Model to use for Gemini.")
     files: Optional[List[str]] = []
+    session_id: Optional[str] = None
 
 class OpenAIChatRequest(BaseModel):
     messages: List[dict]
