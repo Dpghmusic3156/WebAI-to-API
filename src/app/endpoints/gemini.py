@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from app.logger import logger
 from app.services.gemini_client import GeminiClientNotInitializedError, get_gemini_client
 from app.services.telegram_notifier import TelegramNotifier
-from app.services.session_manager import get_gemini_chat_manager
+from app.services.session_manager import get_gemini_chat_manager, init_session_managers
 from app.utils.image_utils import cleanup_temp_files, serialize_response_images
 from schemas.request import GeminiRequest
 
@@ -81,6 +81,9 @@ async def gemini_chat(request: GeminiRequest):
         raise HTTPException(status_code=503, detail=str(e))
 
     session_manager = get_gemini_chat_manager()
+    if not session_manager:
+        init_session_managers()
+        session_manager = get_gemini_chat_manager()
     if not session_manager:
         raise HTTPException(status_code=503, detail="Session manager is not initialized.")
 
