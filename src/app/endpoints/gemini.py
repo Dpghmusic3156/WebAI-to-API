@@ -82,8 +82,14 @@ async def gemini_chat(request: GeminiRequest):
 
     session_manager = get_gemini_chat_manager()
     if not session_manager:
-        init_session_managers()
+        import os
+        logger.warning(f"[gemini-chat] Session manager is None, attempting lazy init (pid={os.getpid()})...")
+        try:
+            init_session_managers()
+        except Exception as e:
+            logger.error(f"[gemini-chat] init_session_managers() raised: {e}", exc_info=True)
         session_manager = get_gemini_chat_manager()
+        logger.warning(f"[gemini-chat] After lazy init, session_manager={session_manager}")
     if not session_manager:
         raise HTTPException(status_code=503, detail="Session manager is not initialized.")
 
